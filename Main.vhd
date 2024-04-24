@@ -98,12 +98,13 @@ begin
 	
 	ONB <= (others => '0');
 	QB <= (others => '0');
-	NENB <= (others => '1');
+	NENB <= (others => '0');
 	RX <= '0';
+	SCK_out <= SCK;
 	
 	-- Test points. 
 	TP1 <= FCK; 
-	TP2 <= TX;
-	TP3 <= FCK; 
-	TP4 <= DB(1) xor DB(2)xor DB(3) xor DB(4); 
+	TP2 <= SCK;
+	TP3 <= TX; 
+	TP4 <= DB(1) xor DB(2)xor DB(3) xor DB(4) xor TX; 
 end behavior;

@@ -16,8 +16,8 @@ CoreRevision=5.8
 ModuleName=PLL
 SourceFormat=VHDL
 ParameterFileVersion=1.0
-Date=04/23/2024
-Time=22:04:28
+Date=04/24/2024
+Time=09:06:12
 
 [Parameters]
 Verilog=0
@@ -44,7 +44,7 @@ PLLRst=0
 PLLMRst=0
 ClkOS2Rst=0
 ClkOS3Rst=0
-LockSig=0
+LockSig=1
 LockStk=0
 WBProt=0
 OPBypass=0
@@ -84,4 +84,4 @@ CLKOS3_AFREQ=0.032794
 CLKOS3_PHASEADJ=0
 
 [Command]
-cmd_line= -w -n PLL -lang vhdl -synth synplify -arch xo2c00 -type pll -fin 10 -fclkop 80 -fclkop_tol 0.0 -fclkos3 0.032768 -fclkos3_tol 0.1 -trimp 0 -phasep 0 -trimp_r -phases3 0 -phase_cntl STATIC -fb_mode 1
+cmd_line= -w -n PLL -lang vhdl -synth synplify -arch xo2c00 -type pll -fin 10 -fclkop 80 -fclkop_tol 0.0 -fclkos3 0.032768 -fclkos3_tol 0.1 -trimp 0 -phasep 0 -trimp_r -phases3 0 -phase_cntl STATIC -fb_mode 1 -lock

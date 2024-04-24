@@ -4,9 +4,9 @@
   (keywordMap (keywordLevel 0))
   (status
     (written
-      (timestamp 2024 4 23 22 4 28)
+      (timestamp 2024 4 24 9 6 13)
       (program "SCUBA" (version "Diamond (64-bit) 3.12.1.454"))))
-      (comment "C:\lscc\diamond\3.12\ispfpga\bin\nt64\scuba.exe -w -n PLL -lang vhdl -synth synplify -arch xo2c00 -type pll -fin 10 -fclkop 80 -fclkop_tol 0.0 -fclkos3 0.032768 -fclkos3_tol 0.1 -trimp 0 -phasep 0 -trimp_r -phases3 0 -phase_cntl STATIC -fb_mode 1 ")
+      (comment "C:\lscc\diamond\3.12\ispfpga\bin\nt64\scuba.exe -w -n PLL -lang vhdl -synth synplify -arch xo2c00 -type pll -fin 10 -fclkop 80 -fclkop_tol 0.0 -fclkos3 0.032768 -fclkos3_tol 0.1 -trimp 0 -phasep 0 -trimp_r -phases3 0 -phase_cntl STATIC -fb_mode 1 -lock ")
   (library ORCLIB
     (edifLevel 0)
     (technology
@@ -137,6 +137,8 @@
           (port CLKOP
             (direction OUTPUT))
           (port CLKOS3
+            (direction OUTPUT))
+          (port LOCK
             (direction OUTPUT)))
         (property NGD_DRC_MASK (integer 1))
         (contents
@@ -248,9 +250,6 @@
               (string "1"))
             (property FEEDBK_PATH
               (string "CLKOP")))
-          (net LOCK
-            (joined
-              (portRef LOCK (instanceRef PLLInst_0))))
           (net scuba_vlo
             (joined
               (portRef Z (instanceRef scuba_vlo_inst))
@@ -286,6 +285,10 @@
               (portRef PHASEDIR (instanceRef PLLInst_0))
               (portRef PHASESEL1 (instanceRef PLLInst_0))
               (portRef PHASESEL0 (instanceRef PLLInst_0))))
+          (net LOCK
+            (joined
+              (portRef LOCK)
+              (portRef LOCK (instanceRef PLLInst_0))))
           (net CLKOS3
             (joined
               (portRef CLKOS3)
