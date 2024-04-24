@@ -9,15 +9,15 @@ use ieee.numeric_std.all;
 
 entity main is 
 	port (
-		FCK : in std_logic; -- Fast (10 MHz) Clock
-		SCK_in : in std_logic; -- Slow (32.768 kHz) Clock
+		FCK : in std_logic; -- Fast (10 MHz) Clock In
+		SCK_out : out std_logic; -- Slow (32.768 kHz) Clock Out
 		
 		TL_in : in std_logic; -- Transmit Logic from Base Board
 		RL : out std_logic; -- Receive Logic to Base Board
 		
 		ONB : out std_logic_vector(16 downto 1); -- Transmit ON Bus
 		QB : out std_logic_vector(4 downto 1); -- Digital Output Bus
-		ENB : out std_logic_vector(4 downto 1); -- Digital Output Enable Bus
+		NENB : out std_logic_vector(4 downto 1); -- Digital Output Enable Bus, Inverting
 		DB_in : in std_logic_vector(4 downto 1); -- Digital Input Bus
 		
 		RST : out std_logic; -- Reset Output
@@ -44,12 +44,20 @@ architecture behavior of main is
 -- Synchronized Inputs
 	signal TL : std_logic; -- Synchronized Transmit Logic
 	signal DB : std_logic_vector(4 downto 1); -- Synchronized Digital Input Bus
-	signal SCK : std_logic; -- Synchronized Slow Clock
 	
 -- Management Signals
 	signal RESET : boolean; -- RESET
+	signal SCK : std_logic; -- Slow Clock (32.768 kHz)
 
 begin
+
+	-- The command transmitter should run off a 32.768 kHz clock. The PLL takes FCK 
+	-- as input and produces SCK within 0.1% of the ideal. This SCK is synchronous
+	-- with FCK.
+	Clock : entity PLL port map (
+		CLKI => FCK,
+		CLKOS3 => SCK
+	);
 
 	-- The Input Processor provides synchronized versions of incoming 
 	-- signals and positive-polarity versions too.
@@ -58,11 +66,10 @@ begin
 		if rising_edge(FCK) then
 			DB <= DB_in;
 			TL <= to_std_logic(TL_in = '1');
-			SCK <= SCK_in;
 		end if;
 	end process;
 	
-	-- The Reset Arbitrator generates the reset signal when TL remains LO for
+	-- The Reset Arbitrator generates the reset signal when TL remains HI for
 	-- more than 39 ms.
 	Reset_Arbitrator : process (SCK) is
 	constant reset_len : integer := 256;
@@ -71,13 +78,15 @@ begin
 	begin
 		if rising_edge(SCK) then
 			next_count := count;
-			if (TL = '1') then 
+			if (TL = '0') then 
 				next_count := 0;
+				RESET <= false;
 			else
-				if (count /= reset_len - 1) then
+				if (count < reset_len - 1) then
 					next_count := count + 1;
 					RESET <= false;
 				else 
+					next_count := count;
 					RESET <= true;
 				end if;
 			end if;
@@ -89,12 +98,12 @@ begin
 	
 	ONB <= (others => '0');
 	QB <= (others => '0');
-	ENB <= (others => '0');
+	NENB <= (others => '1');
 	RL <= '0';
 	
 	-- Test points. 
 	TP1 <= FCK; 
 	TP2 <= TL;
-	TP3 <= to_std_logic(RESET); 
+	TP3 <= FCK; 
 	TP4 <= DB(1) xor DB(2)xor DB(3) xor DB(4); 
 end behavior;
