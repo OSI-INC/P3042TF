@@ -12,8 +12,8 @@ entity main is
 		FCK : in std_logic; -- Fast (10 MHz) Clock In
 		SCK_out : out std_logic; -- Slow (32.768 kHz) Clock Out
 		
-		TL_in : in std_logic; -- Transmit Logic from Base Board
-		RL : out std_logic; -- Receive Logic to Base Board
+		TX_in : in std_logic; -- Transmit Logic from Base Board
+		RX : out std_logic; -- Receive Logic to Base Board
 		
 		ONB : out std_logic_vector(16 downto 1); -- Transmit ON Bus
 		QB : out std_logic_vector(4 downto 1); -- Digital Output Bus
@@ -42,7 +42,7 @@ architecture behavior of main is
 	begin if v then return('1'); else return('0'); end if; end function;
 	
 -- Synchronized Inputs
-	signal TL : std_logic; -- Synchronized Transmit Logic
+	signal TX : std_logic; -- Synchronized Transmit Logic
 	signal DB : std_logic_vector(4 downto 1); -- Synchronized Digital Input Bus
 	
 -- Management Signals
@@ -65,7 +65,7 @@ begin
 	begin
 		if rising_edge(FCK) then
 			DB <= DB_in;
-			TL <= to_std_logic(TL_in = '1');
+			TX <= to_std_logic(TX_in = '1');
 		end if;
 	end process;
 	
@@ -78,7 +78,7 @@ begin
 	begin
 		if rising_edge(SCK) then
 			next_count := count;
-			if (TL = '0') then 
+			if (TX = '0') then 
 				next_count := 0;
 				RESET <= false;
 			else
@@ -99,11 +99,11 @@ begin
 	ONB <= (others => '0');
 	QB <= (others => '0');
 	NENB <= (others => '1');
-	RL <= '0';
+	RX <= '0';
 	
 	-- Test points. 
 	TP1 <= FCK; 
-	TP2 <= TL;
+	TP2 <= TX;
 	TP3 <= FCK; 
 	TP4 <= DB(1) xor DB(2)xor DB(3) xor DB(4); 
 end behavior;
