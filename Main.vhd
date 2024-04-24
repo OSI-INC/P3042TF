@@ -96,7 +96,7 @@ begin
 		RST <= to_std_logic(RESET);
 	end process;
 	
-	ONB <= (others => '0');
+	ONB <= (others => SCK);
 	QB <= (others => '0');
 	NENB <= (others => '0');
 	RX <= '0';
