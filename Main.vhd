@@ -15,9 +15,9 @@ entity main is
 		TX_in : in std_logic; -- Transmit Logic from Base Board
 		RX : out std_logic; -- Receive Logic to Base Board
 		
-		ONB : out std_logic_vector(16 downto 1); -- Transmit ON Bus
+		ONB_neg : out std_logic_vector(16 downto 1); -- Transmit ON Bus, Inverted
 		QB : out std_logic_vector(4 downto 1); -- Digital Output Bus
-		NENB : out std_logic_vector(4 downto 1); -- Digital Output Enable Bus, Inverting
+		ENB_neg : out std_logic_vector(4 downto 1); -- Digital Output Enable Bus, Inverted
 		DB_in : in std_logic_vector(4 downto 1); -- Digital Input Bus
 		
 		RST : out std_logic; -- Reset Output
@@ -31,7 +31,7 @@ architecture behavior of main is
 	attribute syn_keep : boolean;
 	attribute nomerge : string;
 		
--- General-Purpose Constant
+-- General-Purpose Constants
 	constant max_data_byte : std_logic_vector(7 downto 0) := "11111111";
 	constant high_z_byte : std_logic_vector(7 downto 0) := "ZZZZZZZZ";
 	constant zero_data_byte : std_logic_vector(7 downto 0) := "00000000";
@@ -40,6 +40,10 @@ architecture behavior of main is
 -- Functions and Procedures	
 	function to_std_logic (v: boolean) return std_ulogic is
 	begin if v then return('1'); else return('0'); end if; end function;
+	
+-- Positive True Signals
+	signal ONB : std_logic_vector(16 downto 1):= (others => '0');
+	signal ENB : std_logic_vector(4 downto 1) := (others => '0');
 	
 -- Synchronized Inputs
 	signal TX : std_logic; -- Synchronized Transmit Logic
@@ -51,9 +55,8 @@ architecture behavior of main is
 
 begin
 
-	-- The command transmitter should run off a 32.768 kHz clock. The PLL takes FCK 
-	-- as input and produces SCK within 0.1% of the ideal. This SCK is synchronous
-	-- with FCK.
+	-- The PLL produces 32.794 kHz for SCK. The perfect value is 32.768 kHz. This SCK 
+	-- is synchronous with FCK.
 	Clock : entity PLL port map (
 		CLKI => FCK,
 		CLKOS3 => SCK
@@ -96,10 +99,30 @@ begin
 		RST <= to_std_logic(RESET);
 	end process;
 	
-	ONB <= (others => SCK);
-	QB <= (others => '0');
-	NENB <= (others => '0');
+	-- Temporary assignments for transmitter module control.
+	Mod_CK : process (SCK) is
+	variable count : integer range 0 to 15;
+	begin
+		if rising_edge(SCK) then
+			if (count < 8) then
+				ONB <= (others => '0');
+			else
+				ONB <= (others => '1');
+			end if;
+			count := count + 1;
+		end if;
+	end process;
+	
+	-- Temporary assignments for digital input-output.
+	QB <= (others => '1');
+	ENB <= (others => '0');
+	
+	-- Temporary assignments for serial bus.
 	RX <= '0';
+	
+	-- Outputs with inversion as needed.
+	ENB_neg <= not ENB;
+	ONB_neg <= not ONB;
 	SCK_out <= SCK;
 	
 	-- Test points. 
