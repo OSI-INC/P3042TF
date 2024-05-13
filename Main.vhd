@@ -9,8 +9,8 @@ use ieee.numeric_std.all;
 
 entity main is 
 	port (
-		FCK : in std_logic; -- Fast (10 MHz) Clock In
-		SCK_out : out std_logic; -- Slow (32.768 kHz) Clock Out
+		FCK : in std_logic; -- Fast Clock In (10 MHz) 
+		RCK_out : out std_logic; -- Reference Clock Out (32.768 kHz)
 		
 		TX_in : in std_logic; -- Transmit Logic from Base Board
 		RX : out std_logic; -- Receive Logic to Base Board
@@ -51,15 +51,15 @@ architecture behavior of main is
 	
 -- Management Signals
 	signal RESET : boolean; -- RESET
-	signal SCK : std_logic; -- Slow Clock (32.768 kHz)
+	signal RCK : std_logic; -- Slow Clock (32.768 kHz)
 
 begin
 
-	-- The PLL produces 32.794 kHz for SCK. The perfect value is 32.768 kHz. This SCK 
+	-- The PLL produces 32.794 kHz for RCK. The perfect value is 32.768 kHz. This RCK 
 	-- is synchronous with FCK.
 	Clock : entity PLL port map (
 		CLKI => FCK,
-		CLKOS3 => SCK
+		CLKOS3 => RCK
 	);
 
 	-- The Input Processor provides synchronized versions of incoming 
@@ -74,12 +74,12 @@ begin
 	
 	-- The Reset Arbitrator generates the reset signal when TL remains HI for
 	-- more than 39 ms.
-	Reset_Arbitrator : process (SCK) is
+	Reset_Arbitrator : process (RCK) is
 	constant reset_len : integer := 256;
 	variable count, next_count : integer range 0 to reset_len-1;
 	variable initiate : boolean;
 	begin
-		if rising_edge(SCK) then
+		if rising_edge(RCK) then
 			next_count := count;
 			if (TX = '0') then 
 				next_count := 0;
@@ -100,34 +100,34 @@ begin
 	end process;
 	
 	-- Temporary assignments for transmitter module control.
-	Mod_CK : process (SCK) is
+	Mod_CK : process (RCK) is
 	variable count : integer range 0 to 15;
 	begin
-		if rising_edge(SCK) then
+		if rising_edge(RCK) then
 			if (count < 8) then
 				ONB <= (others => '0');
 			else
-				ONB <= (others => '1');
+				ONB <= (others => '0');
 			end if;
 			count := count + 1;
 		end if;
 	end process;
 	
 	-- Temporary assignments for digital input-output.
-	QB <= (others => '1');
-	ENB <= (others => '0');
+	QB <= (others => RCK);
+	ENB <= (others => '1');
 	
 	-- Temporary assignments for serial bus.
-	RX <= '0';
+	RX <= TX;
 	
 	-- Outputs with inversion as needed.
 	ENB_neg <= not ENB;
 	ONB_neg <= not ONB;
-	SCK_out <= SCK;
+	RCK_out <= RCK;
 	
 	-- Test points. 
 	TP1 <= FCK; 
-	TP2 <= SCK;
+	TP2 <= RCK;
 	TP3 <= TX; 
-	TP4 <= DB(1) xor DB(2)xor DB(3) xor DB(4) xor TX; 
+	TP4 <= DB(1) xor DB(2) xor DB(3) xor DB(4) xor TX; 
 end behavior;
