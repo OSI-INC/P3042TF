@@ -36,13 +36,14 @@ architecture behavior of main is
 	constant high_z_byte : std_logic_vector(7 downto 0) := "ZZZZZZZZ";
 	constant zero_data_byte : std_logic_vector(7 downto 0) := "00000000";
 	constant one_data_byte : std_logic_vector(7 downto 0) := "00000001";
+	constant reset_len : integer := 256;
 
 -- Functions and Procedures	
 	function to_std_logic (v: boolean) return std_ulogic is
 	begin if v then return('1'); else return('0'); end if; end function;
 	
 -- Positive True Signals
-	signal ONB : std_logic_vector(16 downto 1):= (others => '0');
+	signal RFTX : std_logic := '0';
 	signal ENB : std_logic_vector(4 downto 1) := (others => '0');
 	
 -- Synchronized Inputs
@@ -72,12 +73,13 @@ begin
 		end if;
 	end process;
 	
-	-- The Reset Arbitrator generates the reset signal when TL remains HI for
-	-- more than 39 ms.
+	-- The Reset Arbitrator generates the reset signal when TX remains HI for
+	-- more than reset_len RCK periods. So long as TX remains high thereafter, 
+	-- so does RESET remain asserted. As soon as TX is LO on a rising edge of 
+	-- RCK, RESET will be unasserted for at least reset_len RCK periods. With
+	-- reset_len = 256, the reset detection period is 39 ms.
 	Reset_Arbitrator : process (RCK) is
-	constant reset_len : integer := 256;
 	variable count, next_count : integer range 0 to reset_len-1;
-	variable initiate : boolean;
 	begin
 		if rising_edge(RCK) then
 			next_count := count;
@@ -105,12 +107,13 @@ begin
 	begin
 		if rising_edge(RCK) then
 			if (count < 8) then
-				ONB <= (others => '0');
+				RFTX <= '0';
 			else
-				ONB <= (others => '0');
+				RFTX <= '0';
 			end if;
 			count := count + 1;
 		end if;
+		for i in 1 to 16 loop ONB_neg(i) <= not RFTX; end loop;
 	end process;
 	
 	-- Temporary assignments for digital input-output.
@@ -120,12 +123,11 @@ begin
 	-- Temporary assignments for serial bus.
 	RX <= TX;
 	
-	-- Outputs with inversion as needed.
+	-- Outputs with and without inversion.
 	ENB_neg <= not ENB;
-	ONB_neg <= not ONB;
 	RCK_out <= RCK;
 	
-	-- Test points. 
+	-- Test points, including keepers for unused inputs. 
 	TP1 <= FCK; 
 	TP2 <= RCK;
 	TP3 <= TX; 
