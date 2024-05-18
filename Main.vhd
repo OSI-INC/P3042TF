@@ -1,6 +1,6 @@
 -- <pre> Telemetry Control Box (TCB) Transmitting Feedthrough Firmware
 
--- V1.1, 27-MAR-24: 
+-- V1.1, 17-MAY-24: 
 
 -- Global constants and types.  
 library ieee;  
@@ -36,7 +36,6 @@ architecture behavior of main is
 	constant high_z_byte : std_logic_vector(7 downto 0) := "ZZZZZZZZ";
 	constant zero_data_byte : std_logic_vector(7 downto 0) := "00000000";
 	constant one_data_byte : std_logic_vector(7 downto 0) := "00000001";
-	constant reset_len : integer := 256;
 
 -- Functions and Procedures	
 	function to_std_logic (v: boolean) return std_ulogic is
@@ -86,14 +85,15 @@ begin
 	end process;
 	
 	-- The Reset Arbitrator generates the reset signal when TX remains HI for
-	-- more than reset_len RCK periods. So long as TX remains high thereafter, 
+	-- more than reset_len SCK periods. So long as TX remains high thereafter, 
 	-- so does RESET remain asserted. As soon as TX is LO on a rising edge of 
 	-- RCK, RESET will be unasserted for at least reset_len RCK periods. With
-	-- reset_len = 256, the reset detection period is 39 ms.
-	Reset_Arbitrator : process (RCK) is
+	-- reset_len = 1024, the reset detection period is 512 us.
+	Reset_Arbitrator : process (SCK) is
+	constant reset_len : integer := 1024;
 	variable count, next_count : integer range 0 to reset_len-1;
 	begin
-		if rising_edge(RCK) then
+		if rising_edge(SCK) then
 			next_count := count;
 			if (TX = '0') then 
 				next_count := 0;
