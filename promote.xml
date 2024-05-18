@@ -1,8 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<userSetting name="C:/Kevan/A3042/P3042TF/promote.xml" version="Diamond (64-bit) 3.12.1.454" date="Mon May 13 18:21:58 2024" vendor="Lattice Semiconductor Corporation" >
+<userSetting name="C:/Kevan/A3042/P3042TF/promote.xml" version="Diamond (64-bit) 3.12.1.454" date="Fri May 17 18:43:35 2024" vendor="Lattice Semiconductor Corporation" >
   <msg mid="35921504" type="Info" />
   <msg mid="35921033" type="Error" />
+  <msg mid="35921040" type="Error" />
   <msg mid="35921205" type="Warning" />
+  <msg mid="35921272" type="Error" />
+  <msg mid="35921549" type="Error" />
   <msg mid="35921251" type="Warning" />
   <msg mid="35921613" type="Warning" />
+  <msg mid="35921303" type="Warning" />
 </userSetting>
