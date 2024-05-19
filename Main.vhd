@@ -42,7 +42,6 @@ architecture behavior of main is
 	begin if v then return('1'); else return('0'); end if; end function;
 	
 -- Positive True Signals
-	signal RFTX : std_logic := '0';
 	signal ENB : std_logic_vector(4 downto 1) := (others => '0');
 	
 -- Synchronized Inputs
@@ -59,6 +58,14 @@ architecture behavior of main is
 	signal BBRFULL : std_logic; -- Base Board Receiver Buffer Full
 	signal bb_in, bb_in_waiting : std_logic_vector(15 downto 0); 
 	signal bb_out: std_logic_vector(7 downto 0);
+	
+-- Instruction Processing
+	signal CTXI : boolean; -- Command Transmit Initiate
+	signal CTXD : boolean; -- Command Transmit Done
+	signal SPI : boolean; -- Start Pulse Initiate
+	signal SPD : boolean; -- Start Pulse Done
+	signal RFTX : boolean; -- Radio Frequency Transmit Bit
+	signal RFSP : boolean; -- Radio Frequency Start Pulse
 	
 -- Management Signals
 	signal RESET : std_logic; -- RESET
@@ -184,38 +191,181 @@ begin
 					state := state + 1;
 			end case;
 		end if;
-	end process;		
-
-	-- Temporary assignments for transmitter module control.
-	Mod_CK : process (RCK) is
-	variable count : integer range 0 to 15;
-	begin
-		if rising_edge(RCK) then
-			if (count < 8) then
-				RFTX <= '0';
-			else
-				RFTX <= '0';
-			end if;
-			count := count + 1;
-		end if;
-		for i in 1 to 16 loop ONB_neg(i) <= not RFTX; end loop;
 	end process;
 	
+	-- The Instruction Processor reads a sixteen-bit word out of the
+	-- base board receive buffer, decodes the opcode in its lower eight
+	-- bits and executes the opcode.
+	Instruction_Processor : process (SCK,RESET) is 
+	variable state : integer range 0 to 15;
+	begin
+		if (RESET = '1') then
+			state := 0;
+			CTXI <= false;
+			SPI <= false;
+			BBRRD <= '0';
+		elsif rising_edge(SCK) then
+			case state is
+				when 0 => 
+					CTXI <= false;
+					SPI <= false;
+					if (BBREMPTY = '0') then
+						BBRRD <= '1';
+						state := 1;
+					else 
+						BBRRD <= '0';
+						state := 0;
+					end if;
+				when 1 =>
+					BBRRD <= '0';
+					case bb_in_waiting(1 downto 0) is
+						when "00" =>
+							CTXI <= false;
+							SPI <= false;
+							state := 0;
+						when "01" =>
+							CTXI <= false;
+							SPI <= true;
+							state := 2;
+						when "10" =>
+							CTXI <= true;
+							SPI <= false;
+							state := 4;
+					end case;
+				when 2 =>
+					CTXI <= false;
+					SPI <= true;
+					if SPD then
+						state :=3;
+					else
+						state := 2;
+					end if;
+				when 3 =>
+					CTXI <= false;
+					SPI <= false;
+					if not SPD then
+						state := 0;
+					else
+						state := 3;
+					end if;
+				when 4 =>
+					CTXI <= true;
+					SPI <= false;
+					if CTXD then 
+						state := 5;
+					else
+						state := 4;
+					end if;
+				when 5 =>
+					CTXI <= false;
+					SPI <= false;
+					if not CTXD then
+						state := 0;
+					else 
+						state := 5;
+					end if;
+				when others =>
+					CTXI <= false;
+					SPI <= false;
+					state := 0;
+			end case;		
+		end if;
+	end process;
+	
+	-- The Command Transmitter transmit eight bits of command content
+	-- by means of a start bit, eight data bits, and two stop bits.
+	Command_Transmitter : process (RCK,RESET) is
+	variable state, next_state : integer range 0 to 63;
+	variable count : integer range 0 to 255;
+	begin
+		if (RESET = '1') then
+			state := 0;
+			count := 0;
+			RFTX <= false;
+			RFSP <= false;
+			CTXD <= false;
+			SPD <= false;
+		elsif rising_edge(RCK) then
+			next_state := state + 1;
+			CTXD <= false;
+			SPD <= false;
+			case state is 
+				when 0 => 
+					RFTX <= false;
+					if not CTXI then next_state := 0; end if;
+				when 1 | 2 | 3 | 4 =>
+					RFTX <= true;
+				when 5 | 6 | 7 | 8 =>
+					RFTX <= bb_in_waiting(15) = '1';
+				when 9 | 10 | 11 | 12 =>
+					RFTX <= bb_in_waiting(14) = '1';
+				when 13 | 14 | 15 | 16 =>
+					RFTX <= bb_in_waiting(13) = '1';
+				when 17 | 18 | 19 | 20 =>
+					RFTX <= bb_in_waiting(12) = '1';
+				when 21 | 22 | 23 | 24 =>
+					RFTX <= bb_in_waiting(11) = '1';
+				when 25 | 26 | 27 | 28 =>
+					RFTX <= bb_in_waiting(10) = '1';
+				when 29 | 30 | 31 | 32 =>
+					RFTX <= bb_in_waiting(9) = '1';
+				when 33 | 34 | 35 | 36 =>
+					RFTX <= bb_in_waiting(8) = '1';
+				when 37 | 38 | 39 | 40 | 41 | 42 | 43 =>
+					RFTX <= false;
+				when others =>
+					RFTX <= false;
+					CTXD <= true;
+					if not CTXI then 
+						next_state := 0; 
+					else
+						next_state := state;
+					end if;
+			end case;
+			state := next_state;
+			
+			if (count > 0) and (count < 250) then
+				RFSP <= true;
+			else
+				RFSP <= false;
+			end if;
+			
+			if (count = 0) then
+				if SPI then
+					count := 1;
+				else 
+					count := 0;
+				end if;
+			elsif (count = 255) then
+				SPD <= true;
+				if not SPI then
+					count := 0;
+				else
+					count := count;
+				end if;
+			else
+				count := count + 1;
+			end if;
+		end if;
+		
+		for i in 1 to 16 loop ONB_neg(i) <= 
+			to_std_logic((not RFTX) and (not RFSP)); end loop;
+	end process;
+
 	-- Temporary assignments for digital input-output.
 	QB <= (others => RCK);
 	ENB <= (others => '1');
 	
 	-- Temporary assignments for serial bus.
 	RX <= TX;
-	BBRRD <= '1';
 	
 	-- Outputs with and without inversion.
 	ENB_neg <= not ENB;
 	RCK_out <= RCK;
 	
 	-- Test points, including keepers for unused inputs. 
-	TP1 <= SCK; 
-	TP2 <= RCK;
-	TP3 <= bb_in_waiting(0); 
+	TP1 <= to_std_logic(CTXD); 
+	TP2 <= to_std_logic(CTXI);
+	TP3 <= BBRRD; 
 	TP4 <= DB(1) xor DB(2) xor DB(3) xor DB(4) xor TX; 
 end behavior;
