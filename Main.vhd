@@ -1,6 +1,10 @@
 -- <pre> Telemetry Control Box (TCB) Transmitting Feedthrough Firmware
 
--- V1.1, 17-MAY-24: 
+-- V1.1, 20-MAY-24: Implements a command transmitter backward compatible with 
+-- the Command Transmitter (A3029C). This code works in conjunction with TCB 
+-- base board firmware P3042BB V5.1. Logic outputs enabled and driven with 
+-- reference clock. Serial line back to base board driven LO. Reset of 
+-- firmware by 512-us HI on TX.
 
 -- Global constants and types.  
 library ieee;  
@@ -56,7 +60,7 @@ architecture behavior of main is
 	signal BBRRD : std_logic; -- Base Board Receiver Read
 	signal BBREMPTY : std_logic; -- Base Board Receiver Buffer Empty
 	signal BBRFULL : std_logic; -- Base Board Receiver Buffer Full
-	signal bb_in, bb_in_waiting : std_logic_vector(15 downto 0); 
+	signal bb_in, bb_in_buff : std_logic_vector(15 downto 0); 
 	signal bb_out: std_logic_vector(7 downto 0);
 	
 -- Instruction Processing
@@ -131,7 +135,7 @@ begin
 			RdEn => BBRRD,
 			Reset => RESET,
 			RPReset => RESET,
-			Q => bb_in_waiting,
+			Q => bb_in_buff,
 			Empty => BBREMPTY,
 			Full => BBRFULL
 		);
@@ -218,7 +222,7 @@ begin
 					end if;
 				when 1 =>
 					BBRRD <= '0';
-					case bb_in_waiting(1 downto 0) is
+					case bb_in_buff(1 downto 0) is
 						when "00" =>
 							CTXI <= false;
 							SPI <= false;
@@ -293,26 +297,17 @@ begin
 				when 0 => 
 					RFTX <= false;
 					if not CTXI then next_state := 0; end if;
-				when 1 | 2 | 3 | 4 =>
+				when 1 to 4 =>
 					RFTX <= true;
-				when 5 | 6 | 7 | 8 =>
-					RFTX <= bb_in_waiting(15) = '1';
-				when 9 | 10 | 11 | 12 =>
-					RFTX <= bb_in_waiting(14) = '1';
-				when 13 | 14 | 15 | 16 =>
-					RFTX <= bb_in_waiting(13) = '1';
-				when 17 | 18 | 19 | 20 =>
-					RFTX <= bb_in_waiting(12) = '1';
-				when 21 | 22 | 23 | 24 =>
-					RFTX <= bb_in_waiting(11) = '1';
-				when 25 | 26 | 27 | 28 =>
-					RFTX <= bb_in_waiting(10) = '1';
-				when 29 | 30 | 31 | 32 =>
-					RFTX <= bb_in_waiting(9) = '1';
-				when 33 | 34 | 35 | 36 =>
-					RFTX <= bb_in_waiting(8) = '1';
-				when 37 | 38 | 39 | 40 | 41 | 42 | 43 =>
-					RFTX <= false;
+				when 5 to 8 => RFTX <= bb_in_buff(15) = '1';
+				when 9 to 12 => RFTX <= bb_in_buff(14) = '1';
+				when 13 to 16 => RFTX <= bb_in_buff(13) = '1';
+				when 17 to 20 => RFTX <= bb_in_buff(12) = '1';
+				when 21 to 24 => RFTX <= bb_in_buff(11) = '1';
+				when 25 to 28 => RFTX <= bb_in_buff(10) = '1';
+				when 29 to 32 => RFTX <= bb_in_buff(9) = '1';
+				when 33 to 36 => RFTX <= bb_in_buff(8) = '1';
+				when 37 to 52 => RFTX <= false;
 				when others =>
 					RFTX <= false;
 					CTXD <= true;
@@ -324,7 +319,7 @@ begin
 			end case;
 			state := next_state;
 			
-			if (count > 0) and (count < 250) then
+			if (count > 0) and (count < 164) then
 				RFSP <= true;
 			else
 				RFSP <= false;
@@ -336,7 +331,7 @@ begin
 				else 
 					count := 0;
 				end if;
-			elsif (count = 255) then
+			elsif (count = 180) then
 				SPD <= true;
 				if not SPI then
 					count := 0;
@@ -357,7 +352,7 @@ begin
 	ENB <= (others => '1');
 	
 	-- Temporary assignments for serial bus.
-	RX <= TX;
+	RX <= '0';
 	
 	-- Outputs with and without inversion.
 	ENB_neg <= not ENB;
