@@ -1,10 +1,14 @@
 -- <pre> Telemetry Control Box (TCB) Transmitting Feedthrough Firmware
 
--- V1.1, 20-MAY-24: Implements a command transmitter backward compatible with 
+-- V1.1, 29-JUN-24: Implements a command transmitter backward compatible with 
 -- the Command Transmitter (A3029C). This code works in conjunction with TCB 
--- base board firmware P3042BB V5.1. Logic outputs enabled and driven with 
--- reference clock. Serial line back to base board driven LO. Reset of 
--- firmware by 512-us HI on TX.
+-- base board firmware P3042BB V5.1. Reset of firmware by 512-us HI on TX. 
+-- Receive sixteen-bit command on TX from base board. The rf_on command causes
+-- an initializing pulse, but does not leave the RF turned on. The rf_off forces
+-- off. The rf_xmit transmits eight bits. All command transmitters running
+-- at the same time off the same negative true ON signals, no individual control.
+-- Can set the digital input-outputs with separate commands. Transmit eight bits 
+-- continuously on RX back to base board, carrying DB and ENB buses. 
 
 -- Global constants and types.  
 library ieee;  
