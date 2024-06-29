@@ -20,7 +20,7 @@ entity main is
 		RX : out std_logic; -- Receive Logic to Base Board
 		
 		ONB_neg : out std_logic_vector(16 downto 1); -- Transmit ON Bus, Inverted
-		QB : out std_logic_vector(4 downto 1); -- Digital Output Bus
+		QB : inout std_logic_vector(4 downto 1); -- Digital Output Bus
 		ENB_neg : out std_logic_vector(4 downto 1); -- Digital Output Enable Bus, Inverted
 		DB_in : in std_logic_vector(4 downto 1); -- Digital Input Bus
 		
@@ -49,16 +49,11 @@ architecture behavior of main is
 	signal DB : std_logic_vector(4 downto 1); -- Synchronized Digital Input Bus
 	
 -- Base Board Interface
-	signal BBIWR : std_logic; -- Base Board Receiver Write
-	signal BBIRD : std_logic; -- Base Board Receiver Read
-	signal BBIEMPTY : std_logic; -- Base Board Receiver Buffer Empty
-	signal BBIFULL : std_logic; -- Base Board Receiver Buffer Full
+	signal BBIWR : std_logic; -- Base Board Incoming Write
+	signal BBIRD : std_logic; -- Base Board Incoming Read
+	signal BBIEMPTY : std_logic; -- Base Board Incoming Buffer Empty
+	signal BBIFULL : std_logic; -- Base Board Incoming Buffer Full
 	signal bbi_in, bbi_out : std_logic_vector(15 downto 0); 
-	signal BBXWR : std_logic; -- Base Board Transmit Write
-	signal BBXRD : std_logic; -- Base Board Transmit Read
-	signal BBXEMPTY : std_logic; -- Base Board Transmit Buffer Empty
-	signal BBXFULL : std_logic; -- Base Board Transmit Buffer Full
-	signal bbo_in, bbo_out: std_logic_vector(7 downto 0);
 	
 -- Instruction Processing
 	signal CTXI : boolean; -- Command Transmit Initiate
@@ -121,14 +116,14 @@ begin
 		RST <= RESET;
 	end process;
 	
--- The Base Board Input is the buffer where the Base Board Receiver
+-- The Base Board Incoming is the buffer where the Base Board Receiver
 -- writes sixteen-bit commands it receives from the Base Board. The
 -- Instruction Processor checks BBIEMPTY to see if a byte is waiting.
-	BB_Input : entity FIFO16
+	BB_Incoming : entity FIFO16
 		port map (
 			Data => bbi_in,
 			WrClock => not SCK,
-			RDClock => not SCK,
+			RdClock => not SCK,
 			WrEn => BBIWR,
 			RdEn => BBIRD,
 			Reset => RESET,
@@ -139,7 +134,7 @@ begin
 		);
 	
 	-- The Base Board Receiver receives sixteen-bit messages from the 
-	-- Base Board and writes them into the Base Board Input buffer.
+	-- Base Board and writes them into the Base Board Incoming buffer.
 	BB_Receiver : process (SCK,RESET) is
 	variable state : integer range 0 to 255;
 	variable FTX, RTX : std_logic;
@@ -195,8 +190,47 @@ begin
 		end if;
 	end process;
 	
+	-- The Base Board Transmitter transmits the state of the digital
+	-- inputs to the base board using an eight-bit serial word. It 
+	-- uses RX and SCK to generate the signal. Transmission takes place 
+	-- at 1 MBPS. The RX signal is usually LO, so we begin with 2 us of 
+	-- guaranteed LO for set-up, then a 1-us HI for a start bit, and the 
+	-- eight data bits, 1 us each. The transmitter repeats every 256 us,
+	-- taking 11 us per transmission.
+	BB_Transmitter : process (SCK,RESET) is 
+	variable state : integer range 0 to 255;
+	begin
+		if (RESET = '1') then
+			state := 0;
+		elsif rising_edge(SCK) then
+			case state is
+				when 4 => RX <= '1';
+				when 5 => RX <= '1';
+				when 6 => RX <= ENB(4);
+				when 7 => RX <= ENB(4);
+				when 8 => RX <= ENB(3);
+				when 9 => RX <= ENB(3);
+				when 10 => RX <= ENB(2);
+				when 11 => RX <= ENB(2);
+				when 12 => RX <= ENB(1);
+				when 13 => RX <= ENB(1);
+				when 14 => RX <= DB(4);
+				when 15 => RX <= DB(4);
+				when 16 => RX <= DB(3);
+				when 17 => RX <= DB(3);
+				when 18 => RX <= DB(2);
+				when 19 => RX <= DB(2);
+				when 20 => RX <= DB(1);
+				when 21 => RX <= DB(1);
+				when others => RX <= '0';
+			end case;
+			
+			state := state + 1;
+		end if;
+	end process;	
+	
 	-- The Instruction Processor reads sixteen-bit words out of the
-	-- Base Board Input buffer, decodes the opcode in the lower seven
+	-- Base Board Incoming buffer, decodes the opcode in the lower seven
 	-- bits, uses the upper eight bits as the operand, and executes
 	-- each instruction. Bit seven, the eighth bit, is always one for
 	-- a valid opcode.
@@ -353,12 +387,10 @@ begin
 		end if;
 		
 		for i in 1 to 16 loop ONB_neg(i) <= 
-			to_std_logic((not RFTX) and (not RFSP)); end loop;
+			to_std_logic((not RFTX) and (not RFSP)); 
+		end loop;
 	end process;
 
-	-- Temporary assignments for serial bus.
-	RX <= '0';
-	
 	-- Outputs with and without inversion.
 	ENB_neg <= not ENB;
 	RCK_out <= RCK;
