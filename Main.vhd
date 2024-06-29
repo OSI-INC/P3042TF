@@ -27,19 +27,16 @@ entity main is
 		RST : out std_logic; -- Reset Output
 		TP1, TP2, TP3, TP4 : out std_logic -- Test Points
 	);	
+	
+	-- Instruction Op-Codes
+	constant rf_off_op  : integer := 0; -- Turn off the RF transmitter.
+	constant rf_on_op   : integer := 1; -- Turn on the RF transmitter.
+	constant rf_xmit_op : integer := 2; -- Transmit a command byte.
+	constant dio_en_op  : integer := 8; -- Enable or disable digital outputs.
+	constant dio_set_op : integer := 9; -- Set or clear digital outputs.
 end;
 
 architecture behavior of main is
-
--- Attributes to guide the compiler.
-	attribute syn_keep : boolean;
-	attribute nomerge : string;
-		
--- General-Purpose Constants
-	constant max_data_byte : std_logic_vector(7 downto 0) := "11111111";
-	constant high_z_byte : std_logic_vector(7 downto 0) := "ZZZZZZZZ";
-	constant zero_data_byte : std_logic_vector(7 downto 0) := "00000000";
-	constant one_data_byte : std_logic_vector(7 downto 0) := "00000001";
 
 -- Functions and Procedures	
 	function to_std_logic (v: boolean) return std_ulogic is
@@ -199,9 +196,10 @@ begin
 	end process;
 	
 	-- The Instruction Processor reads sixteen-bit words out of the
-	-- Base Board Input buffer, decodes the opcode in the lower eight
+	-- Base Board Input buffer, decodes the opcode in the lower seven
 	-- bits, uses the upper eight bits as the operand, and executes
-	-- each instruction.
+	-- each instruction. Bit seven, the eighth bit, is always one for
+	-- a valid opcode.
 	Instruction_Processor : process (SCK,RESET) is 
 	variable state : integer range 0 to 15;
 	begin
@@ -210,8 +208,11 @@ begin
 			CTXI <= false;
 			SPI <= false;
 			BBIRD <= '0';
+			ENB <= (others => '0');
+			QB <= (others => '0');
 		elsif rising_edge(SCK) then
 			case state is
+				-- Detect instruction waiting, read instruction.
 				when 0 => 
 					CTXI <= false;
 					SPI <= false;
@@ -222,21 +223,27 @@ begin
 						BBIRD <= '0';
 						state := 0;
 					end if;
+				-- Examine the opcode in the lower eight bits of the
+				-- instruction. Start execution or abort.
 				when 1 =>
 					BBIRD <= '0';
-					case bbi_out(1 downto 0) is
-						when "00" =>
-							CTXI <= false;
-							SPI <= false;
+					case to_integer(unsigned(bbi_out(6 downto 0))) is
+						when rf_off_op =>
 							state := 0;
-						when "01" =>
-							CTXI <= false;
+						when rf_on_op =>
 							SPI <= true;
 							state := 2;
-						when "10" =>
+						when rf_xmit_op =>
 							CTXI <= true;
-							SPI <= false;
 							state := 4;
+						when dio_en_op =>
+							ENB <= bbi_out(11 downto 8);
+							state := 0;
+						when dio_set_op =>
+							QB <= bbi_out(11 downto 8);
+							state := 0;
+						when others =>
+							state := 0;
 					end case;
 				when 2 =>
 					CTXI <= false;
@@ -349,10 +356,6 @@ begin
 			to_std_logic((not RFTX) and (not RFSP)); end loop;
 	end process;
 
-	-- Temporary assignments for digital input-output.
-	QB <= (others => RCK);
-	ENB <= (others => '1');
-	
 	-- Temporary assignments for serial bus.
 	RX <= '0';
 	
