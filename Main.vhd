@@ -8,7 +8,9 @@
 -- off. The rf_xmit transmits eight bits. All command transmitters running
 -- at the same time off the same negative true ON signals, no individual control.
 -- Can set the digital input-outputs with separate commands. Transmit eight bits 
--- continuously on RX back to base board, carrying DB and ENB buses. 
+-- continuously on RX back to base board, carrying DB and ENB buses. Can turn on
+-- one and only one transmitter module continuously for testing. When any other
+-- instruction is received, this module will turn off.
 
 -- Global constants and types.  
 library ieee;  
@@ -36,6 +38,7 @@ entity main is
 	constant rf_off_op  : integer := 0; -- Turn off the RF transmitter.
 	constant rf_on_op   : integer := 1; -- Turn on the RF transmitter.
 	constant rf_xmit_op : integer := 2; -- Transmit a command byte.
+	constant tm_test_op : integer := 3; -- Transmitter Module test.
 	constant dio_en_op  : integer := 8; -- Enable or disable digital outputs.
 	constant dio_set_op : integer := 9; -- Set or clear digital outputs.
 end;
@@ -48,6 +51,7 @@ architecture behavior of main is
 	
 -- Positive True Signals
 	signal ENB : std_logic_vector(4 downto 1) := (others => '0');
+	signal ONB : std_logic_vector(16 downto 1) := (others => '0');
 	
 -- Synchronized Inputs
 	signal DB : std_logic_vector(4 downto 1); -- Synchronized Digital Input Bus
@@ -66,6 +70,7 @@ architecture behavior of main is
 	signal SPD : boolean; -- Start Pulse Done
 	signal RFTX : boolean; -- Radio Frequency Transmit Bit
 	signal RFSP : boolean; -- Radio Frequency Start Pulse
+	signal tm_sel : integer range 0 to 255; -- Transmitter Module Select
 	
 -- Management Signals
 	signal RESET : std_logic; -- RESET
@@ -248,6 +253,7 @@ begin
 			BBIRD <= '0';
 			ENB <= (others => '0');
 			QB <= (others => '0');
+			tm_sel <= 0;
 		elsif rising_edge(SCK) then
 			case state is
 				-- Detect instruction waiting, read instruction.
@@ -264,6 +270,7 @@ begin
 				-- Examine the opcode in the lower eight bits of the
 				-- instruction. Start execution or abort.
 				when 1 =>
+					tm_sel <= 0;
 					BBIRD <= '0';
 					case to_integer(unsigned(bbi_out(6 downto 0))) is
 						when rf_off_op =>
@@ -274,6 +281,9 @@ begin
 						when rf_xmit_op =>
 							CTXI <= true;
 							state := 4;
+						when tm_test_op =>
+							tm_sel <= to_integer(unsigned(bbi_out(15 downto 8)));
+							state := 0;
 						when dio_en_op =>
 							ENB <= bbi_out(11 downto 8);
 							state := 0;
@@ -390,18 +400,19 @@ begin
 			end if;
 		end if;
 		
-		for i in 1 to 16 loop ONB_neg(i) <= 
-			to_std_logic((not RFTX) and (not RFSP)); 
+		for i in 1 to 16 loop 
+			ONB(i) <= to_std_logic(RFTX or RFSP or (i = tm_sel)); 
 		end loop;
 	end process;
 
 	-- Outputs with and without inversion.
 	ENB_neg <= not ENB;
+	ONB_neg <= not ONB;
 	RCK_out <= RCK;
 	
 	-- Test points, including keepers for unused inputs. 
-	TP1 <= to_std_logic(CTXD); 
+	TP1 <= to_std_logic(tm_sel /= 0); 
 	TP2 <= to_std_logic(CTXI);
 	TP3 <= BBIRD; 
-	TP4 <= DB(1) xor DB(2) xor DB(3) xor DB(4) xor TX; 
+	TP4 <= DB(1) xor DB(2) xor DB(3) xor DB(4); 
 end behavior;
